@@ -4,7 +4,11 @@ import chalk from 'chalk'
 import dotenv, { DotenvParseOutput } from 'dotenv'
 import dotenvExpand from 'dotenv-expand'
 import { Options as RollupPluginVueOptions } from 'rollup-plugin-vue'
-import { CompilerOptions, SFCStyleCompileOptions } from '@vue/compiler-sfc'
+import {
+  CompilerOptions,
+  SFCStyleCompileOptions,
+  TemplateCompiler
+} from '@vue/compiler-sfc'
 import Rollup, {
   InputOptions as RollupInputOptions,
   OutputOptions as RollupOutputOptions,
@@ -74,6 +78,12 @@ export interface SharedConfig {
    * ```
    */
   optimizeDeps?: DepOptimizationOptions
+
+  /**
+   * The template compilers to be used
+   */
+  vueTemplateCompilers?: TemplateCompilers
+
   /**
    * Options to pass to `@vue/compiler-dom`
    *
@@ -264,6 +274,12 @@ export interface BuildConfig extends SharedConfig {
   shouldPreload?: (chunk: OutputChunk) => boolean
 }
 
+export type TemplateCompilers = Record<string, TemplateCompilerOptions>
+
+export type TemplateCompilerOptions =
+  | TemplateCompiler
+  | [TemplateCompiler, CompilerOptions]
+
 export interface UserConfig extends BuildConfig, ServerConfig {
   plugins?: Plugin[]
 }
@@ -276,6 +292,7 @@ export interface Plugin
     | 'resolvers'
     | 'configureServer'
     | 'vueCompilerOptions'
+    | 'vueTemplateCompilers'
     | 'vueCustomBlockTransforms'
     | 'rollupInputOptions'
     | 'rollupOutputOptions'
@@ -430,6 +447,10 @@ function resolvePlugin(config: UserConfig, plugin: Plugin): UserConfig {
       config.configureServer || [],
       plugin.configureServer || []
     ),
+    vueTemplateCompilers: {
+      ...config.vueTemplateCompilers,
+      ...plugin.vueTemplateCompilers
+    },
     vueCompilerOptions: {
       ...config.vueCompilerOptions,
       ...plugin.vueCompilerOptions

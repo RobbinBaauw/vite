@@ -1,6 +1,7 @@
 import type { UserConfig } from 'vite'
 import { jsPlugin } from './plugins/jsPlugin'
 import { i18nTransform } from './custom-blocks/i18nTransform'
+import * as Vugel from 'vugel'
 
 const config: UserConfig = {
   alias: {
@@ -11,6 +12,9 @@ const config: UserConfig = {
   minify: false,
   serviceWorker: !!process.env.USE_SW,
   plugins: [jsPlugin],
+  vueTemplateCompilers: {
+    vugel: Vugel
+  },
   vueCustomBlockTransforms: { i18n: i18nTransform },
   optimizeDeps: {
     exclude: ['bootstrap', 'rewrite-unoptimized-test-package'],

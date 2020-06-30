@@ -13,6 +13,7 @@
     "optimize-linked": "link:./optimize-linked",
     "resolve-browser-field-test-package": "link:./resolve/browser-field",
     "rewrite-optimized-test-package": "link:./resolve/rewrite-optimized/test-package",
-    "rewrite-unoptimized-test-package": "link:./resolve/rewrite-unoptimized/test-package"
+    "rewrite-unoptimized-test-package": "link:./resolve/rewrite-unoptimized/test-package",
+    "vugel": "link:../node_modules/vugel"
   }
 }

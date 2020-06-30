@@ -3,22 +3,23 @@ import chalk from 'chalk'
 import path from 'path'
 import { Context, ServerPlugin } from '.'
 import {
+  CompilerOptions,
   SFCBlock,
   SFCDescriptor,
-  SFCTemplateBlock,
   SFCStyleBlock,
+  SFCStyleCompileOptions,
   SFCStyleCompileResults,
-  CompilerOptions,
-  SFCStyleCompileOptions
+  SFCTemplateBlock,
+  TemplateCompiler
 } from '@vue/compiler-sfc'
 import { resolveCompiler, resolveVue } from '../utils/resolveVue'
 import hash_sum from 'hash-sum'
 import LRUCache from 'lru-cache'
-import { debugHmr, importerMap, ensureMapEntry } from './serverPluginHmr'
+import { debugHmr, ensureMapEntry, importerMap } from './serverPluginHmr'
 import {
-  resolveFrom,
   cachedRead,
   cleanUrl,
+  resolveFrom,
   watchFileIfOutOfRoot
 } from '../utils'
 import { transform } from '../esbuildService'
@@ -29,7 +30,8 @@ import { compileCss, rewriteCssUrls } from '../utils/cssUtils'
 import { parse } from '../utils/babelParse'
 import MagicString from 'magic-string'
 import { resolveImport } from './serverPluginModuleRewrite'
-import { SourceMap, mergeSourceMap } from './serverPluginSourceMap'
+import { mergeSourceMap, SourceMap } from './serverPluginSourceMap'
+import { TemplateCompilers } from '../config'
 
 const debug = require('debug')('vite:sfc')
 const getEtag = require('etag')
@@ -124,7 +126,8 @@ export const vuePlugin: ServerPlugin = ({
         filePath,
         publicPath,
         descriptor.styles.some((s) => s.scoped),
-        config.vueCompilerOptions
+        config.vueCompilerOptions,
+        config.vueTemplateCompilers
       )
       ctx.body = code
       ctx.map = map
@@ -504,7 +507,8 @@ function compileSFCTemplate(
   filePath: string,
   publicPath: string,
   scoped: boolean,
-  userOptions: CompilerOptions | undefined
+  userOptions: CompilerOptions | undefined,
+  templateCompilers: TemplateCompilers | undefined
 ): ResultWithMap {
   let cached = vueCache.get(filePath)
   if (cached && cached.template) {
@@ -514,6 +518,11 @@ function compileSFCTemplate(
 
   const start = Date.now()
   const { compileTemplate, generateCodeFrame } = resolveCompiler(root)
+  const { compiler, compilerOptions } = getCompilerAndOptions(
+    template,
+    userOptions,
+    templateCompilers
+  )
   const { code, map, errors } = compileTemplate({
     source: template.content,
     filename: filePath,
@@ -521,8 +530,9 @@ function compileSFCTemplate(
     transformAssetUrls: {
       base: path.posix.dirname(publicPath)
     },
+    compiler,
     compilerOptions: {
-      ...userOptions,
+      ...compilerOptions,
       scopeId: scoped ? `data-v-${hash_sum(publicPath)}` : null,
       runtimeModuleName: resolveVue(root).isLocal
         ? // in local mode, vue would have been optimized so must be referenced
@@ -692,4 +702,43 @@ function rewriteDefaultExport(code: string): string {
   })
   const ret = s.toString()
   return ret
+}
+
+function getCompilerAndOptions(
+  template: SFCTemplateBlock,
+  userOptions: CompilerOptions | undefined,
+  templateCompilers: TemplateCompilers | undefined
+): {
+  compiler: TemplateCompiler | undefined
+  compilerOptions: CompilerOptions | undefined
+} {
+  let compilerOptions = userOptions
+  let compiler: TemplateCompiler | undefined = undefined
+
+  const compilerName = template.attrs.compiler
+  if (compilerName) {
+    if (typeof compilerName !== 'string') {
+      console.error(
+        chalk.red(
+          `\n[vite] SFC parse error: The compiler attribute requires a value!`
+        )
+      )
+    } else if (!templateCompilers || !templateCompilers[compilerName]) {
+      console.error(`\n[vite] SFC parse error: No compiler ${compilerName} found. In your vite config, specify the vue rule:
+        vueTemplateCompilers: {
+          ${compilerName}: require('${compilerName}')
+        }`)
+    } else {
+      const info = templateCompilers[compilerName]
+      if (Array.isArray(info)) {
+        compiler = info[0]
+        compilerOptions = info[1] || {}
+      } else {
+        compiler = info
+        compilerOptions = {}
+      }
+    }
+  }
+
+  return { compiler, compilerOptions }
 }
